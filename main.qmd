@@ -1,0 +1,336 @@
+---
+title: "_Ab initio_ Protein Structure Prediction with AlphaFold3"
+author: "Jan Emmanuel Samson"
+format: 
+  html:
+    toc: true
+    theme: sandstone
+highlight-style: haddock
+---
+
+# AlphaFold3
+
+- a machine learning model used to predict the joint structure of complexes
+  - proteins
+  - nucleic acids
+  - small molecules
+  - ions
+  - modified residues
+
+:::{.column-margin}
+The paper describing AlphaFold3 has not been published, but a draft is available [here](https://www.nature.com/articles/s41586-024-07487-w).
+:::
+
+| Criterion | AlphaFold2 | AlphaFold3 |
+|:----------|:----------:|:----------:|
+| MSA processing | Evoformer | Pairformer |
+| Structure prediction | Structure module | Diffusion module |
+| Limitations | Proteins | Complexes |
+| Server provision | No | Yes |
+: Feature comparison of AlphaFold2 and AlphaFold3 models. {.hover .striped}
+
+## Claims
+
+- greater accuracy on predicting protein-ligand interactions as compared to _state of the art_ docking tools
+- higher accuracy on protein-nucleic acid interactions than specific predictors
+- significantly higher antibody-antigen prediction accuracy than AlphaFold-Multimer v2.3
+
+# AlphaFold Server
+
+According to their official page:
+
+> AlphaFold Server is a web-service that can generate highly accurate biomolecular structure predictions containing proteins, DNA, RNA, ligands, ions, and also model chemical modifications for proteins and nucleic acids in one platform. It's powered by the newest AlphaFold3 model.
+
+## Navigate to the Server
+
+:::{.callout-tip}
+# Step 1
+
+Navigate to the AlphaFold Server website by clicking [here](https://golgi.sandbox.google.com/).
+:::
+
+The website provides a short description of the server's functions, as well as a demo:
+
+{{< video https://youtu.be/9ufplEgtq8w >}}
+
+In order to gain access to the server, we must log in with our email account.
+
+![](/assets/login.png)
+
+## Login with Gmail
+
+:::{.callout-tip}
+# Step 2
+
+Log-in with you email by clicking on `Continue with Google`.
+:::
+
+You'll be redirected to the server. In the navigation bar, we can see the following components:
+
+1. **Server** - main page for running simulations
+2. **About** - a few details on how the server works
+3. **FAQs** - frequently asked questions; consult here prior to reporting an issue
+4. **Feedback** - report an issue or send some suggestions
+5. **Toggle** nightmode - toggle color theme
+6. **Account** - access settings; logout
+
+## Explore the Server Page
+
+:::{.callout-tip}
+# Step 3
+
+Make sure you're currently at the **Server** page. Explore its contents.
+:::
+
+![](/assets/server.png)
+
+It is important to note that you can send a limited number of requests to the server, as indicated by the _Remaining jobs_ count. For each job, the input structure is constrained by a limit of 5,000 tokens. Tokens are computed as follows:
+
+- **Protein**: 1 token per standard amino acid residue
+- **DNA**, **RNA**: 1 token per input nucleotide base
+- **Ligands**: 1 token per atom in the ligand
+- **Ions**: 1 token per ion
+- **Modification**s (excluding glycans): 1 token per atom for all atoms of the modified amino acid residue or nucleotide
+- **Glycan PTMs**: 1 token per atom in the glycan (in addition to the 1 token for the residue the glycan is attached to)
+
+Input sequences are also limited to a minimum length of **four** characters.
+
+## Provide Input Sequences
+
+:::{.callout-tip}
+# Step 4
+
+Navigate to the input bar and click on `Add entity`. Make sure that both inputs have the **protein** molecule type. We will be inputing two amino acid sequences, one from rice and another one from its fungal pathogen _M. oryzae_.
+:::
+
+:::{.callout-note collapse="true"}
+# View FASTA file
+
+```{python}
+! cat ../data/8b2r.fasta
+```
+
+:::
+
+In the **first** input, paste the following sequence:
+
+```sh
+GPMRTKIVVKVHMPCGKSRAKAMALAASVNGVDSVEITGDDKDRLQVVGRGIDPVRLVALLREKCGLAELLQVEEVKE
+```
+In the **second** input, paste the following sequence:
+
+```sh
+GPMRTKIVVKVHMPCGKSRAKAMALAASVNGVDSVEITGDDKDRLQVVGRGIDPVRLVALLREKCGLAELLQVEEVKE
+```
+
+Your input should look like the following:
+
+
+![](/assets/input.png)
+
+## Submit Job and View Results
+
+:::{.callout-tip}
+# Step 5
+
+Click `Continue and preview job` and wait for the job to finish. You will be redirected to the results page.
+:::
+
+The results of your task will be stored as a hashed string on Google's servers. Please take note of the identifier found in the URL to allow for easy sharing of predicted structures.
+
+![](/assets/id.png)
+
+---
+
+The server will return the top five predicted structures, but will only display the highest scoring structure in the web interface. You can still access and view the other structures by clicking on the **Download** button.
+
+![](/assets/results.png)
+
+To assess the quality of the predicted structure, AlphaFold Server also computes the following metrics:
+
+| Metric | Range | Cutoff | Description|
+|:-----:|:-----:|:-----:|:---------------|
+| pLDDT | 0-100 | > 70 | per-atom confidence estimate |
+| PAE | [0, $\infty$) | 0-30 | estimate of the error in the relative position and orientation between two atoms in the predicted structure  |
+| pTM / ipTM | 0-1 | < 0.5 | measures the accuracy of the entire structure based on nearest templates |
+: Accuracy metrics to assess quality of predicted structures. {.hover}
+
+:::{.column-margin}
+**pLDDT**: predicted local distance difference test
+
+**PAE**: predicted aligned error
+
+**pTM**: predicted template modeling score
+
+**ipTM**: interface predicted template modeling score
+
+:::
+
+# JSON Format for Running Jobs
+
+Custom-made JSON files following a specific structure can be fed to the server for automation. We can see the JSON file used in our previous job by unzipping the output directory.
+
+```{python}
+json_path = "../output/af3/fold_pik5_rga5_job_request.json"
+!cat {json_path} | jq
+```
+
+## Job name, seeds and sequences
+
+- `name` is a string with the job name. This is how the job will appear as in the history table.
+- `modelSeeds` is a list of strings of uint32 seed values (e.g. `["1827431", "122"]`). It is recommended to provide an empty list, which prompts the server to use a single random seed for the job.
+- `sequences` is a list of dictionaries that carry descriptions of the molecules for modeling.
+
+## Entity types
+
+Valid entity types mirror those available in the AlphaFold Server web interface:
+
+- `proteinChain` - used for proteins
+- `dnaSequence` - used for DNA (single strand)
+- `rnaSequence` - used for RNA (single strand)
+- `ligand` - used for allowed ligands
+- `ion` - used for allowed ions
+
+Refer to the GitHub [documentation](https://github.com/google-deepmind/alphafold/blob/main/server/README.md) for a complete list of fields for each entity type.
+
+## JSON Structure
+
+<center>
+
+```{mermaid}
+flowchart TD
+  root["JSON"]
+  name["name"]
+  seed["modelSeeds"]
+  sequences["sequences"]
+
+  root === name
+  root === seed
+  root ==== sequences
+
+  sequences ----- protein["proteinChain"]
+  sequences ----- dna["dnaSequence"]
+  sequences --- rna["rnaSequence"]
+  sequences --- lig["ligand"]
+  sequences --- ion["ion"]
+
+  protein --- seq["sequence"]
+  protein --- count["count"]
+  protein --- glycans["glycans"]
+  protein --- mods["modifications"]
+
+  glycans --- res["residues"]
+  glycans --- pos["position"]
+
+  mods --- type["ptmType"]
+  mods --- pos2["position"]
+
+  dna --- dnaseq["sequence"]
+  dna --- dnacount["count"]
+  dna --- dnamods["modifications"]
+
+  dnamods --- dnamodtype["modificationType"]
+  dnamods --- basepos["basePosition"]
+
+  rna --- rnaseq["sequence"]
+  rna --- rnacount["count"]
+  rna --- rnamods["modifications"]
+
+  lig --- lig2["ligand"]
+  lig --- ligcount["count"]
+
+  ion --- ion2["ion"]
+  ion --- ioncount["count"]
+
+```
+
+</center>
+
+# Frequently Asked Questions
+
+:::{.callout-caution icon=false collapse=true}
+
+# 1. What biological molecule types can be modelled with AlphaFold Server?
+
+The following biological molecules types are supported:
+
+- Protein
+- DNA
+- RNA
+- Common ligands
+  - ATP, ADP, AMP, GTP, GDP, FAD, NADP, NADPH, NDP
+  - heme, heme C, myristic acid, oleic acid, palmitic acid, citric acid, chlorophylls A and B, bacteriophylls A and B
+- Common ions
+  - Ca$^{2+}$, Co$^{2+}$, Cu$^{2+}$, Fe$^{3+}$, K,$^{+}$ Mg$^{2+}$, Mn$^{2+}$, Na$^{+}$, Zn$^{2+}$, Cl$^{-}$
+- Common post-translational modifications
+  - Phosphorylation: serine, threonine, tyrosine, histidine
+  - Acetylation: lysine
+  - Methylation: lysine, arginine
+  - Malonylation: cystein
+  - Hydroxylation: proline, lysine, asparagine
+  - Palmitoylation: cysteine
+  - Succinylation: asparagine
+  - S-nitrosylation: cysteine
+  - Formylation: tryptophan
+  - Crotonylation: lysine
+  - Citrullination: lysine, arginine
+  - Glycan chains composed of certain sugars:
+    - $\alpha$-D-glucose, $\beta$-D-glucose
+    - $\alpha$-D-mannose, $\beta$-D-mannose
+    - $\alpha$-L-fucose
+    - $\beta$-D-galactose
+    - N-actyl-$\beta$-D-glucosamine
+- Common chemical modifications of nucleic acids
+  - DNA
+    - Methylation: cytosine, guanine, adenine
+    - Carboxylation: cytosine
+    - Oxidation: guanine
+    - Formylation: cytosine
+  - RNA 
+    - Methylation: cytosine, guanine, adenine, uracil
+    - Isomerization: uridine $\to$ pseudouridine
+    - Formylation: cytosine
+
+
+:::
+
+
+:::{.callout-caution icon=false collapse=true}
+# 2. What is the maximum job size allowed?
+
+5,000 tokens per job.
+
+:::
+
+:::{.callout-caution icon=false collapse=true}
+# 3. How many jobs can I run on AlphaFold Server?
+
+20 jobs per day.
+
+:::
+
+:::{.callout-caution icon=false collapse=true}
+# 4. How should I define inputs for AlphaFold Server?
+
+**For Proteins**: single-letter, standard amino-acid
+
+**For DNA/RNA**: single-letter, standard base
+
+**For ligands, ions, and PTMs**: three-letter CCD code as specified by [PDB](https://www.ebi.ac.uk/pdbe-srv/pdbechem/)
+
+:::
+
+:::{.callout-caution icon=false collapse=true}
+# 5. What are seeds and how are they set?
+
+ The model uses a 'seed' for internal random number generation. Normally this seed is sampled automatically, and will be resampled when cloning a job. Running multiple different seeds of the model and ranking over all the predictions can lead to improved accuracy. The seed used is saved into the output information per run.
+
+To set a specific seed, turn off auto seed selection in the preview screen (after clicking the 'Continue and Preview job' button). The seed can be any integer between 0 and 4,294,967,295. When cloning a job where the seed was set, the seed will return to being automatically chosen by default.
+
+:::
+
+:::{.callout-caution icon=false collapse=true}
+# 6. How can I increase the diversity of my predictions?
+
+Run again with different seeds (it will be chosen automatically if not set). Users of AlphaFold2 have had success in generating diverse predictions by customizing MSA and/or template inputs to the model - this is not currently possible in the server but we hope to provide the ability to do similar customisations soon. 
+:::
